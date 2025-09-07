@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_groq import ChatGroq
@@ -118,30 +118,53 @@ resume_json = {
     "languages": ["Hindi", "Gujarati", "English", "Kannada"]
 }
 
-# Prompt template with JSON schema
+user_question={}
+MAX_QUESTIONS=3
+
 prompt = ChatPromptTemplate.from_template("""
-You are an AI assistant that answers questions based on this resume JSON:
+You are an AI assistant that answers questions about a person's professional profile.
 
-{resume}
-
+Instructions:
+- Answer in 1-2 sentences only.
+- Keep it concise and to the point.
+- Do NOT mention “according to JSON” or anything similar.
+- Provide useful, direct answers.
 
 User question: {question}
+Resume data: {resume}
 """)
-
 # Build chain
 chain = prompt | llm
-
 class ChatRequest(BaseModel):
     question: str
 
 @app.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
+    client_ip = request.client.host
+
+    # initialize counter if new user
+    if client_ip not in user_question:
+        user_question[client_ip] = 0
+
+    # check if user exceeded limit
+    if user_question[client_ip] >= MAX_QUESTIONS:
+        return {
+            "response": f"❌ You have reached the maximum of {MAX_QUESTIONS} questions. No further answers can be provided."
+        }
+
+    # increment counter
+    user_question[client_ip] += 1
+
+    # generate response
     response = chain.invoke({
         "resume": json.dumps(resume_json, indent=2),
         "question": req.question
     })
-    return {"response": response.content}  # <-- now plain text
 
+    return {
+        "response": response.content,
+        "questions_left": MAX_QUESTIONS - user_question[client_ip]
+    }
 
 @app.get("/")
 async def root():
