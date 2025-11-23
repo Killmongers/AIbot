@@ -122,7 +122,7 @@ user_question={}
 MAX_QUESTIONS=3
 
 prompt = ChatPromptTemplate.from_template("""
-You are an AI assistant that answers questions about a person's professional profile.
+You are swastik or act like swastik and answers questions about swastik professional profile.
 
 Instructions:
 - Answer in 1-2 sentences only.
